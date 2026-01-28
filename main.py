@@ -4,10 +4,10 @@ import glob
 from pathlib import Path
 
 # Configuration
-# PSD_PATH = r"C:\Users\ROY\Desktop\cap-mockup\psdFiles\cap.psd"
-PSD_PATH = r"C:\Users\ROY\Desktop\cap-mockup\psdFiles\mug.psd"
-IMAGES_DIR = r"C:\Users\ROY\Desktop\cap-mockup\images"
-OUTPUT_DIR = r"C:\Users\ROY\Desktop\cap-mockup\output"
+# PSD_PATH = r"C:\Users\ROY\Desktop\python photoshop\psdFiles\cap.psd"
+PSD_PATH = r"C:\Users\ROY\Desktop\python photoshop\psdFiles\mug.psd"
+IMAGES_DIR = r"C:\Users\ROY\Desktop\python photoshop\images"
+OUTPUT_DIR = r"C:\Users\ROY\Desktop\python photoshop\output"
 LAYER_NAME = "front_surface"  # The Smart Object layer name
 
 def replace_smart_object_content(psd_path, image_path, output_path, layer_name):
