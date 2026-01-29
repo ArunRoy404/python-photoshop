@@ -4,9 +4,9 @@ from pathlib import Path
 import photoshopapi as psapi
 
 # === LINUX STYLE PATHS ===
-PSD_PATH = "/app/psdFiles/cap.psd"
-IMAGES_DIR = "/app/images"
-OUTPUT_DIR = "/app/output"
+PSD_PATH = r"C:\Users\ROY\Desktop\python-photoshop\psdFiles\mug.psd"
+IMAGES_DIR = r"C:\Users\ROY\Desktop\python-photoshop\images"
+OUTPUT_DIR = r"C:\Users\ROY\Desktop\python-photoshop\output"
 LAYER_NAME = "front_surface"  # The Smart Object layer name
 
 def find_layer_recursive(layer_list, name):
