@@ -3,10 +3,10 @@ import glob
 from pathlib import Path
 import photoshopapi as psapi
 
-# Configuration from working_code_with_photoshop_running.py
-PSD_PATH = r"C:\Users\ROY\Desktop\python photoshop\psdFiles\cap.psd"
-IMAGES_DIR = r"C:\Users\ROY\Desktop\python photoshop\images"
-OUTPUT_DIR = r"C:\Users\ROY\Desktop\python photoshop\output"
+# === LINUX STYLE PATHS ===
+PSD_PATH = "/app/psdFiles/cap.psd"
+IMAGES_DIR = "/app/images"
+OUTPUT_DIR = "/app/output"
 LAYER_NAME = "front_surface"  # The Smart Object layer name
 
 def find_layer_recursive(layer_list, name):
@@ -22,8 +22,7 @@ def find_layer_recursive(layer_list, name):
 
 def main():
     # Ensure output directory exists
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # Get all images from the images directory
     image_extensions = ['*.png', '*.jpg', '*.jpeg', '*.webp']
@@ -42,10 +41,9 @@ def main():
         output_path = os.path.join(OUTPUT_DIR, f"result_{img_name}.psd")
         
         print(f"Processing: {img_name}...")
-        
+
         try:
             # Read the PSD file
-            # Note: This is where 'Unknown Linked Layer version 8' might occur if not embedded.
             layered_file = psapi.LayeredFile.read(PSD_PATH)
             
             # Find the target layer
@@ -60,14 +58,14 @@ def main():
                 print(f"Error: Layer '{LAYER_NAME}' is not a Smart Object layer.")
                 continue
 
-            # Store original dimensions to handle potential scaling differences
+            # Store original dimensions
             orig_w = target_layer.width
             orig_h = target_layer.height
 
             # Replace the content of the smart object
             target_layer.replace(img_path)
             
-            # Optional: Resize back to original visual bounds if the new image has different dimensions
+            # Optional: Resize back to original bounds
             curr_w = target_layer.width
             curr_h = target_layer.height
             if curr_w > 0 and curr_h > 0:
