@@ -13,3 +13,4 @@ def print_layers(layers, level=0):
 with Image.load(PSD_PATH) as img:
     psd = cast(PsdImage, img)
     print_layers(psd.layers)
+
