@@ -3,16 +3,16 @@
     "id": "mug_001",
     "name": "Premium Ceramic Mug",
     "thumbnail": "/thumbnails/mug_thumbnail.png",
-    "width": 2000,
-    "height": 2000,
-    "psdFiles": ["mug.psd","cap.psd"]
+    "editorWidth": 964,
+    "editorHeight": 490,
+    "psdFiles": ["mug_side_1.psd","mug_side_2.psd"]
   },
   {
     "id": "cap_001",
     "name": "Stylish Cotton Cap",
     "thumbnail": "/thumbnails/cap_thumbnail.png",
-    "width": 1500,
-    "height": 1500,
-    "psdFiles": ["cap.psd"]
+    "editorWidth": 533,
+    "editorHeight": 264,
+    "psdFiles": ["cap.psd","cap_female.psd"]
   }
 ]

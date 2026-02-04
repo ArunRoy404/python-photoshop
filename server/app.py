@@ -1,6 +1,7 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import win32com.client
 import os
 import uuid
@@ -9,6 +10,15 @@ import json
 from pathlib import Path
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Configuration (Relative to workspace root or absolute)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -106,17 +116,24 @@ def process_photoshop_image(image_path, output_path, psd_filename):
         doc.Close(2) # Always close without saving template changes
 
 @app.get("/products")
-async def get_products():
-    """Returns a list of products from the JSON file."""
+async def get_products(request: Request):
+    """Returns a list of products from the JSON file with absolute URLs."""
+    base_url = str(request.base_url).rstrip("/")
     try:
         with open(PRODUCTS_FILE, "r") as f:
-            return json.load(f)
+            products = json.load(f)
+            # Make thumbnail URLs absolute
+            for product in products:
+                if "thumbnail" in product and product["thumbnail"].startswith("/"):
+                    product["thumbnail"] = f"{base_url}{product['thumbnail']}"
+            return products
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading products: {e}")
 
 @app.post("/process")
-async def process_image(product_id: str = Form(None), file: UploadFile = File(None)):
-    """Upload an image, process it for all PSDs of a product, and return results."""
+async def process_image(request: Request, product_id: str = Form(None), file: UploadFile = File(None)):
+    """Upload an image, process it for all PSDs of a product, and return result URLs."""
+    base_url = str(request.base_url).rstrip("/")
     
     # 1. Basic presence validation
     if not product_id:
@@ -167,7 +184,7 @@ async def process_image(product_id: str = Form(None), file: UploadFile = File(No
             output_path = os.path.join(OUTPUT_DIR, output_filename)
             
             process_photoshop_image(input_path, output_path, psd_name)
-            result_urls.append(f"/outputs/{output_filename}")
+            result_urls.append(f"{base_url}/outputs/{output_filename}")
 
         # Return the list of result images for this specific request
         return JSONResponse(content={"results": result_urls})
