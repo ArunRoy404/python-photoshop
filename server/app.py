@@ -130,6 +130,32 @@ async def get_products(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading products: {e}")
 
+@app.get("/products/{product_id}")
+async def get_product(product_id: str, request: Request):
+    """Returns a single product by ID with absolute URLs."""
+    base_url = str(request.base_url).rstrip("/")
+    try:
+        if not os.path.exists(PRODUCTS_FILE):
+             raise HTTPException(status_code=500, detail="Products database not found")
+             
+        with open(PRODUCTS_FILE, "r") as f:
+            products = json.load(f)
+        
+        product = next((p for p in products if p["id"] == product_id), None)
+        
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found")
+
+        # Make thumbnail URL absolute
+        if "thumbnail" in product and product["thumbnail"].startswith("/"):
+            product["thumbnail"] = f"{base_url}{product['thumbnail']}"
+            
+        return product
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/process")
 async def process_image(request: Request, product_id: str = Form(None), file: UploadFile = File(None)):
     """Upload an image, process it for all PSDs of a product, and return result URLs."""
