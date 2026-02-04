@@ -1,23 +1,32 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 import win32com.client
 import os
 import uuid
 import shutil
+import json
 from pathlib import Path
 
 app = FastAPI()
 
 # Configuration (Relative to workspace root or absolute)
 BASE_DIR = Path(__file__).resolve().parent.parent
-PSD_PATH = str(BASE_DIR / "psdFiles" / "mug.psd")
+PSD_DIR = str(BASE_DIR / "psdFiles")
 OUTPUT_DIR = str(BASE_DIR / "server" / "temp_output")
 UPLOAD_DIR = str(BASE_DIR / "server" / "uploads")
+PRODUCTS_FILE = str(BASE_DIR / "server" / "products.json")
 LAYER_NAME = "front_surface"
 
 # Ensure directories exist
+THUMBNAILS_DIR = str(BASE_DIR / "server" / "thumbnails")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+
+# Mount static files
+app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
+app.mount("/thumbnails", StaticFiles(directory=THUMBNAILS_DIR), name="thumbnails")
 
 def find_layer_recursive(layers, layer_name):
     """Recursively search for a layer by name in groups and sets."""
@@ -30,7 +39,7 @@ def find_layer_recursive(layers, layer_name):
                 return found
     return None
 
-def process_photoshop_image(image_path, output_path):
+def process_photoshop_image(image_path, output_path, psd_filename):
     """
     Opens a PSD, finds a smart object, replaces content, and scales to original bounds.
     """
@@ -41,7 +50,7 @@ def process_photoshop_image(image_path, output_path):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not connect to Photoshop: {e}")
 
-    abs_psd_path = os.path.abspath(PSD_PATH)
+    abs_psd_path = os.path.abspath(os.path.join(PSD_DIR, psd_filename))
     abs_image_path = os.path.abspath(image_path)
     abs_output_path = os.path.abspath(output_path)
     
@@ -98,43 +107,70 @@ def process_photoshop_image(image_path, output_path):
 
 @app.get("/products")
 async def get_products():
-    """Returns a list of demo products."""
-    return [
-        {
-            "id": "mug_001",
-            "name": "Premium Ceramic Mug",
-            "thumbnail": "https://images.unsplash.com/photo-1514228742587-6b1558fbed20?w=200",
-            "width": 2000,
-            "height": 2000
-        },
-        {
-            "id": "tshirt_001",
-            "name": "Cotton Unisex T-Shirt",
-            "thumbnail": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=200",
-            "width": 1500,
-            "height": 1800
-        }
-    ]
+    """Returns a list of products from the JSON file."""
+    try:
+        with open(PRODUCTS_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error loading products: {e}")
 
 @app.post("/process")
-async def process_image(file: UploadFile = File(...)):
-    """Upload an image, process it in Photoshop, and return the result."""
-    # Generate unique filenames to avoid collision
+async def process_image(product_id: str = Form(None), file: UploadFile = File(None)):
+    """Upload an image, process it for all PSDs of a product, and return results."""
+    
+    # 1. Basic presence validation
+    if not product_id:
+        raise HTTPException(status_code=400, detail="product_id is required")
+        
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No image file provided")
+
+    # 2. Image type validation
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"File type not supported. Allowed: {list(allowed_extensions)}")
+
+    # Generate unique base ID for this request
     file_id = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename)[1]
-    input_path = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
-    output_path = os.path.join(OUTPUT_DIR, f"result_{file_id}.png")
+    input_path = os.path.join(UPLOAD_DIR, f"{file_id}{file_ext}")
 
     try:
+        # 3. Product existence validation
+        if not os.path.exists(PRODUCTS_FILE):
+             raise HTTPException(status_code=500, detail="Products database not found")
+
+        with open(PRODUCTS_FILE, "r") as f:
+            products = json.load(f)
+        
+        product = next((p for p in products if p["id"] == product_id), None)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found")
+
+        # 4. PSD files validation
+        psd_files = product.get("psdFiles", [])
+        if not psd_files:
+            raise HTTPException(status_code=400, detail="This product has no PSD templates associated with it")
+
+        for psd_name in psd_files:
+            if not os.path.exists(os.path.join(PSD_DIR, psd_name)):
+                raise HTTPException(status_code=500, detail=f"PSD template '{psd_name}' missing on server")
+
         # Save the uploaded file
         with open(input_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Process the image
-        process_photoshop_image(input_path, output_path)
+        result_urls = []
+        # Process each PSD file associated with the product
+        for psd_name in psd_files:
+            output_filename = f"result_{file_id}_{psd_name.replace('.psd', '')}.png"
+            output_path = os.path.join(OUTPUT_DIR, output_filename)
+            
+            process_photoshop_image(input_path, output_path, psd_name)
+            result_urls.append(f"/outputs/{output_filename}")
 
-        # Return the resulting image
-        return FileResponse(output_path, media_type="image/png")
+        # Return the list of result images for this specific request
+        return JSONResponse(content={"results": result_urls})
 
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -144,4 +180,16 @@ async def process_image(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Optional: Clear temp folders on startup to keep things clean
+    for folder in [OUTPUT_DIR, UPLOAD_DIR]:
+        for filename in os.listdir(folder):
+            file_path = os.path.join(folder, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f'Failed to delete {file_path}. Reason: {e}')
+                
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
