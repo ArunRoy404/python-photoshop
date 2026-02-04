@@ -157,8 +157,13 @@ async def get_product(product_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/process")
-async def process_image(request: Request, product_id: str = Form(None), file: UploadFile = File(None)):
-    """Upload an image, process it for all PSDs of a product, and return result URLs."""
+async def process_image(
+    request: Request, 
+    product_id: str = Form(None), 
+    file: UploadFile = File(None),
+    singleView: bool = Form(False)
+):
+    """Upload an image, process it for PSDs, and return result URLs. If singleView is true, only processes the first PSD."""
     base_url = str(request.base_url).rstrip("/")
     
     # 1. Basic presence validation
@@ -195,7 +200,10 @@ async def process_image(request: Request, product_id: str = Form(None), file: Up
         if not psd_files:
             raise HTTPException(status_code=400, detail="This product has no PSD templates associated with it")
 
-        for psd_name in psd_files:
+        # If singleView is true, only deal with the first PSD
+        files_to_process = [psd_files[0]] if singleView else psd_files
+
+        for psd_name in files_to_process:
             if not os.path.exists(os.path.join(PSD_DIR, psd_name)):
                 raise HTTPException(status_code=500, detail=f"PSD template '{psd_name}' missing on server")
 
@@ -204,8 +212,8 @@ async def process_image(request: Request, product_id: str = Form(None), file: Up
             shutil.copyfileobj(file.file, buffer)
 
         result_urls = []
-        # Process each PSD file associated with the product
-        for psd_name in psd_files:
+        # Process each PSD file associated with the product (or just one if singleView is true)
+        for psd_name in files_to_process:
             output_filename = f"result_{file_id}_{psd_name.replace('.psd', '')}.png"
             output_path = os.path.join(OUTPUT_DIR, output_filename)
             
