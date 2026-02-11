@@ -12,12 +12,26 @@ from pathlib import Path
 app = FastAPI()
 
 # Add CORS middleware
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-client-type',
+    'ngrok-skip-browser-warning',
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_headers=CORS_ALLOW_HEADERS,
 )
 
 # Configuration (Relative to workspace root or absolute)
